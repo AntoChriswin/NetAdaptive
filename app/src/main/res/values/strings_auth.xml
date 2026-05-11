@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="login_title">Welcome to NetAdaptive</string>
+    <string name="login_subtitle">Predict · Optimize · Adapt</string>
+    <string name="btn_google_sign_in">Sign in with Google</string>
+    <string name="error_google_sign_in">Google sign in failed</string>
+    <string name="error_firebase_auth">Firebase authentication failed</string>
+    <string name="login_cancelled">Login cancelled</string>
+</resources>
