@@ -12,6 +12,8 @@ jobs:
     name: Appium Android E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -52,7 +54,7 @@ jobs:
           api-level: 30
           target: google_apis
           arch: x86_64
-          force-avd-creation: false
+          force-avd-creation: true
           emulator-options: -no-window -gpu libguest-all -no-snapshot-save -noaudio -no-boot-anim
           disable-animations: true
           script: |

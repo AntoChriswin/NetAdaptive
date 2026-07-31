@@ -7,7 +7,7 @@
     "test": "wdio run ./config/wdio.conf.js",
     "test:smoke": "wdio run ./config/wdio.conf.js --spec ./tests/smoke/*.test.js",
     "test:e2e": "wdio run ./config/wdio.conf.js --spec ./tests/e2e/*.test.js",
-    "report": "node ./utils/generateReport.js"
+    "report": "node ./utils/initializeReport.js"
   },
   "dependencies": {
     "@wdio/appium-service": "^8.0.0",
