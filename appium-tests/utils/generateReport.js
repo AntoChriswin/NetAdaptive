@@ -45,7 +45,6 @@ async function generateReport(testResults) {
         detailsSheet.addRow(result);
     });
 
-    // Formatting
     [summarySheet, detailsSheet].forEach(sheet => {
         sheet.getRow(1).font = { bold: true };
         sheet.getRow(1).fill = {
@@ -55,7 +54,11 @@ async function generateReport(testResults) {
         };
     });
 
-    const reportPath = path.join(__dirname, '../reports/appium-test-report.xlsx');
+    const reportDir = path.join(__dirname, '../reports');
+    if (!fs.existsSync(reportDir)) {
+        fs.mkdirSync(reportDir, { recursive: true });
+    }
+    const reportPath = path.join(reportDir, 'appium-test-report.xlsx');
     await workbook.xlsx.writeFile(reportPath);
     console.log(`Report generated at: ${reportPath}`);
 }

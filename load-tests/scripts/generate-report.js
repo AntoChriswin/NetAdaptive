@@ -73,13 +73,16 @@ async function generateReport() {
         { metric: 'p95 Response Time', threshold: '< 1000ms', actual: results ? `${metrics.http_req_duration['p(95)'].toFixed(2)}ms` : '-', result: results ? (metrics.http_req_duration['p(95)'] < 1000 ? 'PASS' : 'FAIL') : '-' }
     ]);
 
-    // Formatting
     [summarySheet, endpointSheet, thresholdSheet].forEach(sheet => {
         sheet.getRow(1).font = { bold: true };
         sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
     });
 
-    const reportPath = path.join(__dirname, '../reports/load-test-report.xlsx');
+    const reportDir = path.join(__dirname, '../reports');
+    if (!fs.existsSync(reportDir)) {
+        fs.mkdirSync(reportDir, { recursive: true });
+    }
+    const reportPath = path.join(reportDir, 'load-test-report.xlsx');
     await workbook.xlsx.writeFile(reportPath);
     console.log(`Report generated at: ${reportPath}`);
 }

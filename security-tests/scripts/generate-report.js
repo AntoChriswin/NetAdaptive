@@ -10,6 +10,11 @@ async function generateReport() {
 
     const allFindings = [...secretResults, ...sastResults];
 
+    const reportDir = path.join(__dirname, '../reports');
+    if (!fs.existsSync(reportDir)) {
+        fs.mkdirSync(reportDir, { recursive: true });
+    }
+
     // 1. Executive Summary Markdown
     const execSummary = `
 # Executive Summary - Security Review
@@ -26,14 +31,14 @@ Overall Security Score: ${Math.max(0, 100 - (allFindings.length * 5))} / 100
 ## Top Risks
 ${allFindings.slice(0, 3).map((f, i) => `${i+1}. ${f.title} (${f.severity})`).join('\n')}
     `;
-    fs.writeFileSync(path.join(__dirname, '../reports/executive-summary.md'), execSummary);
+    fs.writeFileSync(path.join(reportDir, 'executive-summary.md'), execSummary);
 
     // 2. Security Review Markdown
     let securityReview = '# Security Review Detailed Report\n\n';
     allFindings.forEach(f => {
         securityReview += `### ${f.id}: ${f.title}\n- **Severity**: ${f.severity}\n- **File**: ${f.file}\n- **Description**: ${f.description}\n- **Evidence**: ${f.evidence || 'N/A'}\n\n`;
     });
-    fs.writeFileSync(path.join(__dirname, '../reports/security-review.md'), securityReview);
+    fs.writeFileSync(path.join(reportDir, 'security-review.md'), securityReview);
 
     // 3. Excel Report - findings.xlsx
     const workbook = new ExcelJS.Workbook();
@@ -98,14 +103,14 @@ ${allFindings.slice(0, 3).map((f, i) => `${i+1}. ${f.title} (${f.severity})`).jo
     execSheet.addRow({ category: 'Dependency Scanning', status: 'COMPLETED', findings: dependencyResults.length });
     execSheet.addRow({ category: 'DAST', status: 'NOT RUN', findings: 0 });
 
-    await workbook.xlsx.writeFile(path.join(__dirname, '../reports/findings.xlsx'));
+    await workbook.xlsx.writeFile(path.join(reportDir, 'findings.xlsx'));
 
     // 4. Separate Endpoint Inventory - endpoint-inventory.xlsx
     const epWorkbook = new ExcelJS.Workbook();
     const epSheet = epWorkbook.addWorksheet('Endpoints');
     epSheet.columns = endpointSheet.columns;
     endpoints.forEach(e => epSheet.addRow(e));
-    await epWorkbook.xlsx.writeFile(path.join(__dirname, '../reports/endpoint-inventory.xlsx'));
+    await epWorkbook.xlsx.writeFile(path.join(reportDir, 'endpoint-inventory.xlsx'));
 
     console.log('Reports generated successfully.');
 }
