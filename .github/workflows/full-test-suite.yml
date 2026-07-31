@@ -39,7 +39,7 @@ jobs:
       - name: Install Appium and Drivers
         run: |
           npm install -g appium@latest
-          appium driver install uiautomator2@2.45.1
+          appium driver install uiautomator2
 
       - name: Install Test Dependencies
         run: |
