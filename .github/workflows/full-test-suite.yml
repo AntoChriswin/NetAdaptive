@@ -51,7 +51,7 @@ jobs:
       - name: Run Appium Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 29
           target: google_apis
           arch: x86_64
           force-avd-creation: true
@@ -61,7 +61,7 @@ jobs:
             appium --log ./appium-server.log &
             # Wait for Appium to start
             for i in $(seq 1 30); do
-              if grep -q "Appium REST http interface listener started" ./appium-server.log; then
+              if [ -f ./appium-server.log ] && grep -q "Appium REST http interface listener started" ./appium-server.log; then
                 echo "Appium server is ready!"
                 break
               fi
