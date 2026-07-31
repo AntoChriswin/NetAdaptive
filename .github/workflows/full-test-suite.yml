@@ -58,9 +58,16 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            appium --log ./appium-server.log &
+            appium --log ./appium-server.log --address 127.0.0.1 --port 4723 --base-path / &
             # Wait for Appium to start
-            for i in $(seq 1 30); do if [ -f ./appium-server.log ] && grep -q "Appium REST http interface listener started" ./appium-server.log; then echo "Appium server is ready!"; break; fi; echo "Waiting for Appium server..."; sleep 2; done
+            for i in $(seq 1 30); do
+              if [ -f ./appium-server.log ] && grep -q "Appium REST http interface listener started" ./appium-server.log; then
+                echo "Appium server is ready!"
+                break
+              fi
+              echo "Waiting for Appium server..."
+              sleep 2
+            done
             cd appium-tests && npm test || echo "Tests failed"
             cd appium-tests && npm run report
 
