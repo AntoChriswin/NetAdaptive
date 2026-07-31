@@ -1,0 +1,16 @@
+{
+  "name": "netadaptive-security-tests",
+  "version": "1.0.0",
+  "description": "Security testing framework for NetAdaptive",
+  "scripts": {
+    "scan:secrets": "node ./scripts/scan-secrets.js",
+    "scan:dependencies": "node ./scripts/scan-dependencies.js",
+    "scan:sast": "node ./scripts/scan-sast.js",
+    "report": "node ./scripts/generate-report.js",
+    "test:all": "npm run scan:secrets && npm run scan:dependencies && npm run scan:sast && npm run report"
+  },
+  "dependencies": {
+    "exceljs": "^4.3.0",
+    "dotenv": "^16.0.3"
+  }
+}

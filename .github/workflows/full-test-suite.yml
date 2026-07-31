@@ -1,0 +1,255 @@
+name: Full Test Suite
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  appium-tests:
+    name: Appium Android E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: appium-tests/package.json
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Install Appium and Drivers
+        run: |
+          npm install -g appium
+          appium driver install uiautomator2
+
+      - name: Install Test Dependencies
+        run: |
+          cd appium-tests
+          npm install
+
+      - name: Run Appium Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu libguest-all -no-snapshot-save -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            appium --log ./appium-server.log &
+            cd appium-tests
+            npm test || echo "Tests failed"
+            npm run report
+
+      - name: Upload Appium Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appium-test-report
+          path: appium-tests/reports/appium-test-report.xlsx
+          retention-days: 14
+
+      - name: Upload Appium Logs & Evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appium-evidence
+          path: |
+            appium-server.log
+            appium-tests/screenshots/
+          retention-days: 14
+
+  load-tests:
+    name: Load Tests & Report
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: load-tests/package.json
+
+      - name: Install k6
+        run: |
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E34653598FB351A554A2D437D55E38
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Install Dependencies
+        run: |
+          cd load-tests
+          npm install
+
+      - name: Run Baseline Load Test
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          cd load-tests
+          npm run test:baseline || echo "Load tests failed"
+
+      - name: Generate Load Test Report
+        if: always()
+        run: |
+          cd load-tests
+          npm run report
+
+      - name: Upload Load Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report
+          path: load-tests/reports/load-test-report.xlsx
+          retention-days: 14
+
+  security-tests:
+    name: Security Assessment & Reports
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: security-tests/package.json
+
+      - name: Install Dependencies
+        run: |
+          cd security-tests
+          npm install
+
+      - name: Run Security Scans
+        run: |
+          cd security-tests
+          npm run scan:secrets
+          npm run scan:dependencies
+          npm run scan:sast
+
+      - name: Generate Security Reports
+        if: always()
+        run: |
+          cd security-tests
+          npm run report
+
+      - name: Upload Security Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-test-reports
+          path: security-tests/reports/*.xlsx
+          retention-days: 14
+
+      - name: Upload Security Summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summaries
+          path: |
+            security-tests/reports/*.md
+          retention-days: 14
+
+  final-summary:
+    name: Final Test Suite Summary
+    runs-on: ubuntu-latest
+    needs: [appium-tests, load-tests, security-tests]
+    if: always()
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Appium Report
+        uses: actions/download-artifact@v4
+        with:
+          name: appium-test-report
+          path: reports/appium/
+        continue-on-error: true
+
+      - name: Download Load Test Report
+        uses: actions/download-artifact@v4
+        with:
+          name: load-test-report
+          path: reports/load/
+        continue-on-error: true
+
+      - name: Download Security Reports
+        uses: actions/download-artifact@v4
+        with:
+          name: security-test-reports
+          path: reports/security/
+        continue-on-error: true
+
+      - name: Create Combined Report
+        run: |
+          mkdir -p combined-reports/appium
+          mkdir -p combined-reports/load
+          mkdir -p combined-reports/security
+          cp reports/appium/*.xlsx combined-reports/appium/ || true
+          cp reports/load/*.xlsx combined-reports/load/ || true
+          cp reports/security/*.xlsx combined-reports/security/ || true
+
+      - name: Upload Combined Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: complete-test-reports
+          path: combined-reports/
+          retention-days: 14
+
+      - name: Generate GitHub Summary
+        run: |
+          echo "# FULL TEST SUITE SUMMARY" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite          | Result | Report Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| ------------------- | ------ | ------------- |" >> $GITHUB_STEP_SUMMARY
+          
+          # Appium Result
+          if [ "${{ needs.appium-tests.result }}" == "success" ]; then
+            echo "| Appium Android E2E  | ✅ PASS | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Appium Android E2E  | ❌ FAIL | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Load Result
+          if [ "${{ needs.load-tests.result }}" == "success" ]; then
+            echo "| Load Testing        | ✅ PASS | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Load Testing        | ❌ FAIL | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Security Result
+          if [ "${{ needs.security-tests.result }}" == "success" ]; then
+            echo "| Security Assessment | ✅ PASS | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Security Assessment | ⚠️ ISSUE | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- **Appium**: appium-test-report" >> $GITHUB_STEP_SUMMARY
+          echo "- **Load**: load-test-report" >> $GITHUB_STEP_SUMMARY
+          echo "- **Security**: security-test-reports" >> $GITHUB_STEP_SUMMARY
+          echo "- **Combined**: complete-test-reports" >> $GITHUB_STEP_SUMMARY

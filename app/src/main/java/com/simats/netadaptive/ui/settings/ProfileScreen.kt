@@ -21,8 +21,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -30,16 +28,26 @@ import coil.compose.AsyncImage
 import com.simats.netadaptive.ui.onboarding.*
 import com.simats.netadaptive.viewmodel.settings.ProfileUiState
 import com.simats.netadaptive.viewmodel.settings.ProfileViewModel
+import com.simats.netadaptive.viewmodel.vpn.VpnViewModel
+import com.simats.netadaptive.vpn.VpnState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    onHomeClick: () -> Unit = {},
+    onNetworkClick: () -> Unit = {},
+    onAppsClick: () -> Unit = {},
+    onAnalyticsClick: () -> Unit = {},
     onBackClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
     onDeleteAccountClick: () -> Unit = {},
-    viewModel: ProfileViewModel = viewModel()
+    onStartVpnClick: () -> Unit = {},
+    onStopVpnClick: () -> Unit = {},
+    viewModel: ProfileViewModel = viewModel(),
+    vpnViewModel: VpnViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val vpnStatus by vpnViewModel.vpnState.collectAsState()
     val scrollState = rememberScrollState()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -82,19 +90,17 @@ fun ProfileScreen(
                             )
                         }
                     },
-                    actions = {
-                        TextButton(onClick = { /* Handle Edit */ }) {
-                            Text(
-                                text = "Edit",
-                                color = PrimaryContainer,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
                 )
             },
-            bottomBar = { ProfileBottomNav() },
+            bottomBar = {
+                ProfileBottomNav(
+                    onHomeClick = onHomeClick,
+                    onNetworkClick = onNetworkClick,
+                    onAppsClick = onAppsClick,
+                    onAnalyticsClick = onAnalyticsClick
+                )
+            },
             containerColor = Background
         ) { paddingValues ->
             Column(
@@ -108,6 +114,13 @@ fun ProfileScreen(
                 ProfileHeroCard(uiState)
 
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // VPN Control Section
+                    VpnControlSection(
+                        status = vpnStatus,
+                        onStartClick = onStartVpnClick,
+                        onStopClick = onStopVpnClick
+                    )
+
                     InfoSection(
                         title = "Personal Info",
                         items = listOf(
@@ -133,8 +146,7 @@ fun ProfileScreen(
                         onLogoutClick = {
                             viewModel.logout()
                             onLogoutClick()
-                        },
-                        onDeleteClick = { showDeleteDialog = true }
+                        }
                     )
                 }
 
@@ -152,6 +164,75 @@ fun ProfileScreen(
                 onDeleteAccountClick()
             }
         )
+    }
+}
+
+@Composable
+private fun VpnControlSection(
+    status: VpnState,
+    onStartClick: () -> Unit,
+    onStopClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Primary.copy(alpha = 0.2f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.VpnLock,
+                    contentDescription = null,
+                    tint = if (status is VpnState.Running) SuccessGreen else OnSurfaceVariant
+                )
+                Text(
+                    text = "VPN Configuration",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = OnSurface
+                )
+            }
+            
+            val statusText = when(status) {
+                is VpnState.Running -> "Connected"
+                is VpnState.Connecting -> "Connecting..."
+                is VpnState.Stopping -> "Stopping..."
+                is VpnState.Error -> "Error: ${status.message}"
+                else -> "Disconnected"
+            }
+
+            Text(
+                text = "Status: $statusText",
+                fontSize = 14.sp,
+                color = if (status is VpnState.Running) SuccessGreen else ErrorRed,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onStartClick,
+                    modifier = Modifier.weight(1f),
+                    enabled = status is VpnState.Idle || status is VpnState.Error,
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Start VPN")
+                }
+                Button(
+                    onClick = onStopClick,
+                    modifier = Modifier.weight(1f),
+                    enabled = status is VpnState.Running,
+                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Stop VPN")
+                }
+            }
+        }
     }
 }
 
@@ -271,7 +352,7 @@ private fun StatColumn(label: String, value: String, modifier: Modifier = Modifi
         )
         Text(
             text = value,
-            fontSize = 16.sp, // Reduced from 20 to fit potential longer values
+            fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             color = Primary
         )
@@ -364,33 +445,19 @@ private fun InfoSection(title: String, items: List<InfoItem>) {
 }
 
 @Composable
-private fun ActionSection(onLogoutClick: () -> Unit, onDeleteClick: () -> Unit) {
+private fun ActionSection(onLogoutClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.2f))
+        border = BorderStroke(1.dp, Primary.copy(alpha = 0.2f))
     ) {
         Column {
-            ActionRow(
-                icon = Icons.Default.LockReset,
-                label = "Change Password",
-                onClick = {}
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = SurfaceVariant.copy(alpha = 0.5f))
             ActionRow(
                 icon = Icons.Default.Logout,
                 label = "Log Out",
                 tint = PrimaryContainer,
                 onClick = onLogoutClick
-            )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = SurfaceVariant.copy(alpha = 0.5f))
-            ActionRow(
-                icon = Icons.Default.DeleteForever,
-                label = "Delete Account",
-                subtitle = "Permanently remove all network data and configurations.",
-                tint = ErrorRed,
-                onClick = onDeleteClick
             )
         }
     }
@@ -522,51 +589,59 @@ private fun DeleteAccountSheet(deviceName: String, onDismiss: () -> Unit, onConf
 }
 
 @Composable
-private fun ProfileBottomNav() {
+private fun ProfileBottomNav(
+    onHomeClick: () -> Unit,
+    onNetworkClick: () -> Unit,
+    onAppsClick: () -> Unit,
+    onAnalyticsClick: () -> Unit
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFFF3F4F6),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        shadowElevation = 8.dp
+        color = Background,
+        shadowElevation = 8.dp,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 12.dp),
+                .padding(vertical = 8.dp, horizontal = 12.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ProfileBottomNavItem(Icons.Default.Analytics, "Status", false)
-            ProfileBottomNavItem(Icons.Default.Hub, "Nodes", false)
-            ProfileBottomNavItem(Icons.Default.Shield, "Security", false)
-            ProfileBottomNavItem(Icons.Default.Settings, "Settings", true)
+            ProfileNavItem(Icons.Default.Home, "Home", false, onClick = onHomeClick)
+            ProfileNavItem(Icons.Default.Lan, "Network", false, onClick = onNetworkClick)
+            ProfileNavItem(Icons.Default.Widgets, "Apps", false, onClick = onAppsClick)
+            ProfileNavItem(Icons.Default.Insights, "Analytics", false, onClick = onAnalyticsClick)
+            ProfileNavItem(Icons.Default.Settings, "Settings", true, onClick = {})
         }
     }
 }
 
 @Composable
-private fun ProfileBottomNavItem(icon: ImageVector, label: String, active: Boolean) {
+private fun ProfileNavItem(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
     if (active) {
         Surface(
-            color = SecondaryContainer,
-            shape = CircleShape
+            color = PrimaryContainer,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.clickable { onClick() }
         ) {
-            Row(
+            Column(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(imageVector = icon, contentDescription = label, tint = OnSecondaryContainer, modifier = Modifier.size(20.dp))
-                Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = OnSecondaryContainer)
+                Icon(imageVector = icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(24.dp))
+                Text(text = label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     } else {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 8.dp)
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .clickable { onClick() }
         ) {
-            Icon(imageVector = icon, contentDescription = label, tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
-            Text(text = label, fontSize = 12.sp, color = OnSurfaceVariant)
+            Icon(imageVector = icon, contentDescription = label, tint = OnSurfaceVariant, modifier = Modifier.size(24.dp))
+            Text(text = label, fontSize = 10.sp, color = OnSurfaceVariant)
         }
     }
 }
@@ -578,9 +653,3 @@ private data class InfoItem(
     val isMono: Boolean = false,
     val icon: ImageVector? = null
 )
-
-@Preview(showBackground = true)
-@Composable
-fun ProfilePreview() {
-    ProfileScreen()
-}

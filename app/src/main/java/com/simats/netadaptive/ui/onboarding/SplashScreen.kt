@@ -40,15 +40,37 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.simats.netadaptive.R
 import com.simats.netadaptive.core.Resource
 import com.simats.netadaptive.data.repository.AuthRepository
+import com.simats.netadaptive.ui.apps.AllAppsScreen
+import com.simats.netadaptive.ui.apps.AppDetailScreen
+import com.simats.netadaptive.ui.apps.PriorityRankingScreen
+import com.simats.netadaptive.ui.analytics.AnalyticsScreen
+import com.simats.netadaptive.ui.analytics.TotalDataUsageScreen
+import com.simats.netadaptive.ui.analytics.PerAppDataReportScreen
+import com.simats.netadaptive.ui.analytics.ForegroundBackgroundScreen
+import com.simats.netadaptive.data.model.AppUsageData
 import com.simats.netadaptive.ui.dashboard.DashboardActivity
 import com.simats.netadaptive.ui.dashboard.DashboardScreen
+import com.simats.netadaptive.ui.network.LatencyHistoryScreen
+import com.simats.netadaptive.ui.network.LivePredictionScreen
+import com.simats.netadaptive.ui.network.NetworkOptimizeScreen
+import com.simats.netadaptive.ui.network.PacketLossHistoryScreen
+import com.simats.netadaptive.ui.network.PredictionLogScreen
+import com.simats.netadaptive.ui.network.PredictionConfidenceScreen
 import com.simats.netadaptive.ui.settings.ProfileScreen
 import com.simats.netadaptive.viewmodel.auth.AuthViewModel
 import com.simats.netadaptive.viewmodel.auth.AuthViewModelFactory
+import com.simats.netadaptive.viewmodel.NetworkPredictionViewModel
+import com.simats.netadaptive.utils.PermissionUtils
+import com.simats.netadaptive.viewmodel.vpn.VpnViewModel
+import dagger.hilt.android.AndroidEntryPoint
+import androidx.activity.viewModels
 import kotlinx.coroutines.delay
 
+@AndroidEntryPoint
 class SplashScreenActivity : ComponentActivity() {
-    private lateinit var viewModel: AuthViewModel
+    private val viewModel: AuthViewModel by viewModels { AuthViewModelFactory(application, AuthRepository(FirebaseAuth.getInstance())) }
+    private val predictionViewModel: NetworkPredictionViewModel by viewModels()
+    private val vpnViewModel: VpnViewModel by viewModels()
     private lateinit var googleSignInClient: GoogleSignInClient
 
     private val signInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -64,18 +86,36 @@ class SplashScreenActivity : ComponentActivity() {
         }
     }
 
+    private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            android.util.Log.d("VPN_PERMISSION_GRANTED", "VPN permission granted by user")
+            vpnViewModel.startVpn(this)
+        } else {
+            android.util.Log.d("VPN_PERMISSION_DENIED", "VPN permission denied by user")
+            vpnViewModel.onPermissionDenied()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val repository = AuthRepository(FirebaseAuth.getInstance())
-        val factory = AuthViewModelFactory(application, repository)
-        viewModel = ViewModelProvider(this, factory)[AuthViewModel::class.java]
-
-        setupGoogleSignIn()
-
         setContent {
+            LaunchedEffect(Unit) {
+                // Initialize in background to avoid blocking initial UI frames
+                val hasPerms = PermissionUtils.hasPermissions(this@SplashScreenActivity)
+                if (hasPerms) {
+                    predictionViewModel.startMonitoring()
+                } else {
+                    PermissionUtils.requestPermissions(this@SplashScreenActivity, 1001)
+                }
+                setupGoogleSignIn()
+            }
+
             var currentScreen by remember { mutableStateOf("splash") }
+            var selectedApp by remember { mutableStateOf<AppUsageData?>(null) }
             var resetEmail by remember { mutableStateOf("") }
             val signInState by viewModel.authActionState.observeAsState()
 
@@ -135,15 +175,134 @@ class SplashScreenActivity : ComponentActivity() {
                                 onStartOptimizingClick = { currentScreen = "dashboard" }
                             )
                             "dashboard" -> DashboardScreen(
-                                onProfileClick = { currentScreen = "profile" }
+                                onProfileClick = { currentScreen = "profile" },
+                                onNetworkClick = { currentScreen = "network" },
+                                onAppsClick = { currentScreen = "apps" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
+                                onSettingsClick = { currentScreen = "profile" }
+                            )
+                            "network" -> NetworkOptimizeScreen(
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onAppsClick = { currentScreen = "apps" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
+                                onSettingsClick = { currentScreen = "profile" },
+                                onPredictionClick = { currentScreen = "live_prediction" },
+                                onLatencyClick = { currentScreen = "latency_history" },
+                                onPacketLossClick = { currentScreen = "packet_loss_history" }
+                            )
+                            "apps" -> AllAppsScreen(
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onNetworkClick = { currentScreen = "network" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
+                                onSettingsClick = { currentScreen = "profile" },
+                                onPriorityRankingClick = { currentScreen = "priority_ranking" },
+                                onAppClick = { app ->
+                                    selectedApp = app
+                                    currentScreen = "app_detail"
+                                }
+                            )
+                            "app_detail" -> {
+                                selectedApp?.let { app ->
+                                    AppDetailScreen(
+                                        app = app,
+                                        onBackClick = { currentScreen = "apps" },
+                                        onHomeClick = { currentScreen = "dashboard" },
+                                        onNetworkClick = { currentScreen = "network" },
+                                        onAnalyticsClick = { currentScreen = "analytics" },
+                                        onSettingsClick = { currentScreen = "profile" }
+                                    )
+                                }
+                            }
+                            "priority_ranking" -> PriorityRankingScreen(
+                                onBackClick = { currentScreen = "apps" },
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onNetworkClick = { currentScreen = "network" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
+                                onSettingsClick = { currentScreen = "profile" }
+                            )
+                            "latency_history" -> LatencyHistoryScreen(
+                                onBackClick = { currentScreen = "network" },
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
+                                onSettingsClick = { currentScreen = "profile" }
+                            )
+                            "packet_loss_history" -> PacketLossHistoryScreen(
+                                onBackClick = { currentScreen = "network" },
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
+                                onSettingsClick = { currentScreen = "profile" }
+                            )
+                            "live_prediction" -> LivePredictionScreen(
+                                onBackClick = { currentScreen = "network" },
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
+                                onSettingsClick = { currentScreen = "profile" },
+                                onConfidenceClick = { currentScreen = "prediction_confidence" },
+                                onPredictionLogClick = { currentScreen = "prediction_log" }
+                            )
+                            "analytics" -> AnalyticsScreen(
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onNetworkClick = { currentScreen = "network" },
+                                onAppsClick = { currentScreen = "apps" },
+                                onSettingsClick = { currentScreen = "profile" },
+                                onTotalDataUsageClick = { currentScreen = "total_data_usage" },
+                                onPerAppDataClick = { currentScreen = "per_app_data" },
+                                onForegroundBackgroundClick = { currentScreen = "foreground_background" }
+                            )
+                            "total_data_usage" -> TotalDataUsageScreen(
+                                onBackClick = { currentScreen = "analytics" },
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onNetworkClick = { currentScreen = "network" },
+                                onAppsClick = { currentScreen = "apps" },
+                                onSettingsClick = { currentScreen = "profile" }
+                            )
+                            "per_app_data" -> PerAppDataReportScreen(
+                                onBackClick = { currentScreen = "analytics" },
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onNetworkClick = { currentScreen = "network" },
+                                onAppsClick = { currentScreen = "apps" },
+                                onSettingsClick = { currentScreen = "profile" }
+                            )
+                            "foreground_background" -> ForegroundBackgroundScreen(
+                                onBackClick = { currentScreen = "analytics" },
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onNetworkClick = { currentScreen = "network" },
+                                onAppsClick = { currentScreen = "apps" },
+                                onSettingsClick = { currentScreen = "profile" }
+                            )
+                            "prediction_log" -> PredictionLogScreen(
+                                onBackClick = { currentScreen = "live_prediction" },
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
+                                onSettingsClick = { currentScreen = "profile" }
+                            )
+                            "prediction_confidence" -> PredictionConfidenceScreen(
+                                onBackClick = { currentScreen = "live_prediction" },
+                                onNetworkClick = { currentScreen = "network" }
                             )
                             "profile" -> ProfileScreen(
+                                onHomeClick = { currentScreen = "dashboard" },
+                                onNetworkClick = { currentScreen = "network" },
+                                onAppsClick = { currentScreen = "apps" },
+                                onAnalyticsClick = { currentScreen = "analytics" },
                                 onBackClick = { currentScreen = "dashboard" },
                                 onLogoutClick = {
                                     viewModel.logout()
                                     currentScreen = "login"
                                 },
-                                onDeleteAccountClick = { /* Handle delete logic if needed */ }
+                                onDeleteAccountClick = { /* Handle delete logic if needed */ },
+                                onStartVpnClick = {
+                                    val intent = vpnViewModel.prepareVpn(this@SplashScreenActivity)
+                                    if (intent != null) {
+                                        vpnPermissionLauncher.launch(intent)
+                                    } else {
+                                        vpnViewModel.startVpn(this@SplashScreenActivity)
+                                    }
+                                },
+                                onStopVpnClick = {
+                                    vpnViewModel.stopVpn(this@SplashScreenActivity)
+                                },
+                                vpnViewModel = vpnViewModel
                             )
                             "forgot_password" -> ForgotPasswordScreen(
                                 onBackClick = { currentScreen = "login" },
@@ -197,6 +356,17 @@ class SplashScreenActivity : ComponentActivity() {
         val signInIntent = googleSignInClient.signInIntent
         signInLauncher.launch(signInIntent)
     }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1001 && PermissionUtils.hasPermissions(this)) {
+            predictionViewModel.startMonitoring()
+        }
+    }
 }
 
 @Composable
@@ -210,7 +380,7 @@ fun SplashScreen(onLoadingComplete: () -> Unit = {}) {
 
     LaunchedEffect(Unit) {
         progress = 1f
-        delay(4000) // Match animation duration
+        delay(4200) // Slightly longer than animation to let it settle
         onLoadingComplete()
     }
 

@@ -15,9 +15,11 @@ val PrimaryContainer = Color(0xFFFE9237)
 val OnPrimary = Color(0xFFFFFFFF)
 val OnPrimaryContainer = Color(0xFF683300)
 val OnSecondaryContainer = Color(0xFF6A4B00)
+val Secondary = Color(0xFF7C5800)
 val PrimaryFixed = Color(0xFFFFDCC5)
 val SecondaryContainer = Color(0xFFFCB810)
 val TertiaryContainer = Color(0xFFD2A828)
+val SurfaceContainer = Color(0xFFEDEEF0)
 
 // Success colors for ForgetPassSuccessScreen
 val SuccessGreen = Color(0xFF1D9E75)

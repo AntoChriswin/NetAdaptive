@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.*
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
 data class ProfileUiState(
     val isLoading: Boolean = true,
@@ -32,7 +34,8 @@ data class ProfileUiState(
     val isLoggedOut: Boolean = false
 )
 
-class ProfileViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class ProfileViewModel @Inject constructor(application: Application) : AndroidViewModel(application) {
     
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     

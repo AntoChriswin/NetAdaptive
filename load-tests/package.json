@@ -1,0 +1,13 @@
+{
+  "name": "netadaptive-load-tests",
+  "version": "1.0.0",
+  "description": "Baseline and Load Testing for NetAdaptive APIs",
+  "scripts": {
+    "test:baseline": "k6 run ./tests/baseline.test.js --summary-export ./results/results.json",
+    "report": "node ./scripts/generate-report.js"
+  },
+  "dependencies": {
+    "exceljs": "^4.3.0",
+    "dotenv": "^16.0.3"
+  }
+}

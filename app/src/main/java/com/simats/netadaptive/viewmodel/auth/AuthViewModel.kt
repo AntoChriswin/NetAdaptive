@@ -11,6 +11,7 @@ import com.google.firebase.auth.AuthCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.simats.netadaptive.R
 import com.simats.netadaptive.core.Resource
+import com.simats.netadaptive.data.firebase.FirestoreManager
 import com.simats.netadaptive.data.model.User
 import com.simats.netadaptive.data.repository.AuthRepository
 import kotlinx.coroutines.launch
@@ -51,6 +52,7 @@ class AuthViewModel(application: Application, private val repository: AuthReposi
             _authActionState.value = result
             if (result is Resource.Success) {
                 _currentUser.value = result.data
+                FirestoreManager().testFirestoreConnection()
             }
         }
     }
@@ -62,6 +64,7 @@ class AuthViewModel(application: Application, private val repository: AuthReposi
             _authActionState.value = result
             if (result is Resource.Success) {
                 _currentUser.value = result.data
+                FirestoreManager().testFirestoreConnection()
             }
         }
     }
@@ -73,6 +76,7 @@ class AuthViewModel(application: Application, private val repository: AuthReposi
             _authActionState.value = result
             if (result is Resource.Success) {
                 _currentUser.value = result.data
+                FirestoreManager().testFirestoreConnection()
             }
         }
     }

@@ -19,6 +19,7 @@ class AuthRepository(private val firebaseAuth: FirebaseAuth) {
         return try {
             val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
             val user = result.user?.let {
+                ProfileRepository.syncProfile(it)
                 User(it.uid, getDisplayName(it), it.email, it.photoUrl?.toString())
             }
             if (user != null) Resource.Success(user) else Resource.Error("Login failed")
@@ -31,6 +32,7 @@ class AuthRepository(private val firebaseAuth: FirebaseAuth) {
         return try {
             val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
             val user = result.user?.let {
+                ProfileRepository.syncProfile(it)
                 User(it.uid, getDisplayName(it), it.email, it.photoUrl?.toString())
             }
             if (user != null) Resource.Success(user) else Resource.Error("Registration failed")
@@ -43,6 +45,7 @@ class AuthRepository(private val firebaseAuth: FirebaseAuth) {
         return try {
             val result = firebaseAuth.signInWithCredential(credential).await()
             val user = result.user?.let {
+                ProfileRepository.syncProfile(it)
                 User(it.uid, getDisplayName(it), it.email, it.photoUrl?.toString())
             }
             if (user != null) Resource.Success(user) else Resource.Error("Google sign in failed")
