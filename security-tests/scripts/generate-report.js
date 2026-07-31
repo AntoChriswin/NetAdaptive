@@ -4,9 +4,20 @@ const path = require('path');
 
 async function generateReport() {
     const rawDir = path.join(__dirname, '../raw-results');
-    const secretResults = JSON.parse(fs.readFileSync(path.join(rawDir, 'gitleaks-results.json'), 'utf8') || '[]');
-    const sastResults = JSON.parse(fs.readFileSync(path.join(rawDir, 'semgrep-results.json'), 'utf8') || '[]');
-    const dependencyResults = JSON.parse(fs.readFileSync(path.join(rawDir, 'dependency-results.json'), 'utf8') || '[]');
+
+    const readRawResult = (filename) => {
+        const filePath = path.join(rawDir, filename);
+        if (!fs.existsSync(filePath)) return [];
+        try {
+            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (e) {
+            return [];
+        }
+    };
+
+    const secretResults = readRawResult('gitleaks-results.json');
+    const sastResults = readRawResult('semgrep-results.json');
+    const dependencyResults = readRawResult('dependency-results.json');
 
     const allFindings = [...secretResults, ...sastResults];
 

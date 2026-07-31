@@ -26,6 +26,11 @@ if (fs.existsSync(libsFile)) {
     });
 }
 
-const outputPath = path.join(__dirname, '../raw-results/dependency-results.json');
+const rawResultsDir = path.join(__dirname, '../raw-results');
+if (!fs.existsSync(rawResultsDir)) {
+    fs.mkdirSync(rawResultsDir, { recursive: true });
+}
+
+const outputPath = path.join(rawResultsDir, 'dependency-results.json');
 fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
 console.log(`Dependency scan completed. Found ${results.length} issues.`);
