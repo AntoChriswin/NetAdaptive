@@ -30,6 +30,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: appium-tests/package.json
 
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x gradlew
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
