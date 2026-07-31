@@ -57,9 +57,17 @@ jobs:
           disable-animations: true
           script: |
             appium --log ./appium-server.log &
-            cd appium-tests
-            npm test || echo "Tests failed"
-            npm run report
+            # Wait for Appium to start
+            for i in {1..30}; do
+              if grep -q "Appium REST http interface listener started" ./appium-server.log; then
+                echo "Appium server is ready!"
+                break
+              fi
+              echo "Waiting for Appium server..."
+              sleep 2
+            done
+            cd appium-tests && npm test || echo "Tests failed"
+            cd appium-tests && npm run report
 
       - name: Upload Appium Report
         if: always()
