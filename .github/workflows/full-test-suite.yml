@@ -42,7 +42,7 @@ jobs:
         run: |
           cd appium-tests
           npm install
-          npx appium driver install uiautomator2
+          npx appium driver list --installed | grep -q uiautomator2 || npx appium driver install uiautomator2
 
       - name: Run Appium Tests
         uses: reactivecircus/android-emulator-runner@v2
