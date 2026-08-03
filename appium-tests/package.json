@@ -20,5 +20,9 @@
     "chai": "^4.3.7",
     "exceljs": "^4.3.0",
     "webdriverio": "^8.0.0"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
   }
 }

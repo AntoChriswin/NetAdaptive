@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: appium-tests/package.json
 
@@ -40,13 +40,9 @@ jobs:
 
       - name: Install Appium and Drivers
         run: |
-          npm install -g appium@latest
-          appium driver install uiautomator2
-
-      - name: Install Test Dependencies
-        run: |
           cd appium-tests
           npm install
+          npx appium driver install uiautomator2
 
       - name: Run Appium Tests
         uses: reactivecircus/android-emulator-runner@v2
@@ -58,11 +54,12 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            appium --log ./appium-server.log --address 127.0.0.1 --port 4723 --base-path / &
+            cd appium-tests
+            npx appium --log ../appium-server.log --address 127.0.0.1 --port 4723 --base-path / &
             # Wait for Appium to start
-            for i in $(seq 1 30); do if [ -f ./appium-server.log ] && grep -q "Appium REST http interface listener started" ./appium-server.log; then echo "Appium server is ready!"; break; fi; echo "Waiting for Appium server..."; sleep 2; done
-            cd appium-tests && npm test || echo "Tests failed"
-            cd appium-tests && npm run report
+            for i in $(seq 1 30); do if [ -f ../appium-server.log ] && grep -q "Appium REST http interface listener started" ../appium-server.log; then echo "Appium server is ready!"; break; fi; echo "Waiting for Appium server..."; sleep 2; done
+            npm test || echo "Tests failed"
+            npm run report
 
       - name: Upload Appium Report
         if: always()
@@ -92,7 +89,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: load-tests/package.json
 
@@ -141,7 +138,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: security-tests/package.json
 
