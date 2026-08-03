@@ -42,10 +42,12 @@ jobs:
         run: |
           cd appium-tests
           npm install
-          if npx appium driver list --installed | grep -q "uiautomator2"; then
-            npx appium driver update uiautomator2
-          else
+          echo "Installed Appium drivers:"
+          npx appium driver list --installed
+          if ! npx appium driver list --installed | grep -q "uiautomator2"; then
             npx appium driver install uiautomator2
+          else
+            echo "UIAutomator2 driver already installed. Skipping installation."
           fi
 
       - name: Run Appium Tests
