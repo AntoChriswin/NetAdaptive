@@ -14,7 +14,7 @@ exports.config = {
         'appium:platformName': 'Android',
         'appium:platformVersion': process.env.ANDROID_PLATFORM_VERSION || '11.0',
         'appium:automationName': 'UiAutomator2',
-        'appium:app': process.env.ANDROID_APP_PATH || './app/build/outputs/apk/debug/app-debug.apk',
+        'appium:app': process.env.ANDROID_APP_PATH || '../app/build/outputs/apk/debug/app-debug.apk',
         'appium:appPackage': 'com.simats.netadaptive',
         'appium:appActivity': '.ui.onboarding.SplashScreenActivity',
         'appium:newCommandTimeout': 240,
@@ -29,6 +29,9 @@ exports.config = {
     services: [],
     framework: 'mocha',
     reporters: ['spec'],
+    autoCompileOpts: {
+        autoCompile: false
+    },
     mochaOpts: {
         ui: 'bdd',
         timeout: 60000
@@ -55,6 +58,10 @@ exports.config = {
     onComplete: async function(exitCode, config, capabilities, results) {
         // Generate Excel report here if needed, or via separate script
         const generateReport = require('../utils/generateReport');
-        await generateReport(global.testResults);
+        if (global.testResults && global.testResults.length > 0) {
+            await generateReport(global.testResults);
+        } else {
+            console.log('No test results to report from onComplete.');
+        }
     }
 }

@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
           cache: 'npm'
           cache-dependency-path: appium-tests/package.json
 
@@ -92,7 +92,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
           cache: 'npm'
           cache-dependency-path: load-tests/package.json
 
@@ -141,7 +141,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
           cache: 'npm'
           cache-dependency-path: security-tests/package.json
 

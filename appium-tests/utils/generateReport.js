@@ -3,6 +3,10 @@ const path = require('path');
 const fs = require('fs');
 
 async function generateReport(testResults) {
+    if (!testResults || !Array.isArray(testResults)) {
+        console.warn('No test results provided to generateReport');
+        return;
+    }
     const workbook = new ExcelJS.Workbook();
 
     // Sheet 1: Summary
