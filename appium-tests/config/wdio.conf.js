@@ -12,7 +12,7 @@ exports.config = {
     capabilities: [{
         'appium:deviceName': process.env.ANDROID_DEVICE_NAME || 'emulator-5554',
         'appium:platformName': 'Android',
-        'appium:platformVersion': process.env.ANDROID_PLATFORM_VERSION || '11.0',
+        'appium:platformVersion': process.env.ANDROID_PLATFORM_VERSION || '10.0',
         'appium:automationName': 'UiAutomator2',
         'appium:app': process.env.ANDROID_APP_PATH || '../app/build/outputs/apk/debug/app-debug.apk',
         'appium:appPackage': 'com.simats.netadaptive',
