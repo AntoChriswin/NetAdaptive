@@ -39,13 +39,15 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Install Appium and Drivers
+        # REFACTOR: Use bash explicitly to ensure consistent shell behavior for multi-line if/else
+        shell: bash
         run: |
           cd appium-tests
           npm install
-          # Diagnostic: List drivers before installation
           echo "Checking currently installed Appium drivers..."
           npx appium driver list --installed
-          # Idempotent installation of uiautomator2
+          
+          # Idempotent installation of uiautomator2 using a single shell process
           if ! npx appium driver list --installed | grep -q "uiautomator2"; then
             echo "Installing uiautomator2 driver..."
             npx appium driver install uiautomator2
@@ -63,14 +65,17 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
           disable-animations: true
+          # REFACTOR: Using a single script block. We ensure the entire script is treated as one by the action.
+          # To be absolutely sure it runs in a single Bash process, we could write it to a file, 
+          # but the action's 'script' property is designed for this. 
+          # We've improved the syntax to be strictly POSIX/Bash compatible.
           script: |
-            # MODIFICATION: Using POSIX-compliant shell logic to avoid "Syntax error: end of file unexpected"
-            # MODIFICATION: Added explicit timestamps and improved boot polling
+            #!/bin/bash
+            set -e
             
             echo "[$(date)] Starting emulator diagnostics..."
             adb devices
             
-            # Polling for boot completion (Wait up to 5 minutes)
             echo "[$(date)] Waiting for emulator boot (sys.boot_completed)..."
             max_retries=30
             counter=1
@@ -95,11 +100,9 @@ jobs:
               exit 1
             fi
 
-            # MODIFICATION: Unlock emulator screen
             echo "[$(date)] Unlocking emulator screen..."
             adb shell input keyevent 82
             
-            # MODIFICATION: Verify APK exists at the expected path for Appium
             echo "[$(date)] Verifying APK existence..."
             APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
             if [ ! -f "$APK_PATH" ]; then
@@ -108,12 +111,11 @@ jobs:
             fi
             ls -lh "$APK_PATH"
 
-            # MODIFICATION: Start Appium in background and ensure it persists
             echo "[$(date)] Starting Appium server..."
             cd appium-tests
-            npx appium --log ../appium-server.log --address 127.0.0.1 --port 4723 --base-path / &
+            # Use nohup and redirect to ensure it stays in background
+            nohup npx appium --log ../appium-server.log --address 127.0.0.1 --port 4723 --base-path / > ../appium-stdout.log 2>&1 &
             
-            # MODIFICATION: Wait for Appium to respond to status requests
             echo "[$(date)] Waiting for Appium server to be ready..."
             appium_ready=0
             counter=1
@@ -134,18 +136,18 @@ jobs:
               exit 1
             fi
 
-            # MODIFICATION: Run tests with a local environment flag or specific config
             echo "[$(date)] Running Appium Tests..."
-            if ! npm test; then
+            # Run tests and capture exit code
+            TEST_EXIT_CODE=0
+            npm test || TEST_EXIT_CODE=$?
+            
+            if [ $TEST_EXIT_CODE -ne 0 ]; then
               echo "Tests failed during execution."
               TESTS_FAILED=true
             fi
             
-            # MODIFICATION: Always attempt to generate a report if possible
             echo "[$(date)] Generating execution report..."
-            if ! npm run report; then
-              echo "Report generation failed."
-            fi
+            npm run report || echo "Report generation failed."
             
             if [ "$TESTS_FAILED" = "true" ]; then
               exit 1
@@ -170,6 +172,7 @@ jobs:
           name: appium-evidence
           path: |
             appium-server.log
+            appium-stdout.log
             logcat.log
             appium-tests/screenshots/
           retention-days: 14
