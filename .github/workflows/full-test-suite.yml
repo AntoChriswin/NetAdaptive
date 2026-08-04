@@ -60,10 +60,76 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            cd appium-tests && npx appium --log ../appium-server.log --address 127.0.0.1 --port 4723 --base-path / &
-            for i in $(seq 1 30); do if grep -q "Appium REST http interface listener started" appium-server.log 2>/dev/null || grep -q "Appium REST http interface listener started" ../appium-server.log 2>/dev/null; then echo "Appium server is ready!"; break; fi; echo "Waiting for Appium server..."; sleep 2; done
-            cd appium-tests && (npm test || echo "Tests failed")
-            cd appium-tests && (npm run report || echo "Report generation failed")
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting diagnostics..."
+            adb devices
+            
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Waiting for emulator boot to complete..."
+            timeout 300 adb wait-for-device
+            
+            # Polling for boot completion
+            boot_completed=0
+            for i in $(seq 1 30); do
+              status=$(adb shell getprop sys.boot_completed | tr -d '\r')
+              if [ "$status" == "1" ]; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] Emulator boot completed!"
+                boot_completed=1
+                break
+              fi
+              echo "Waiting for sys.boot_completed... ($i/30)"
+              sleep 10
+            done
+            
+            if [ "$boot_completed" -ne 1 ]; then
+              echo "ERROR: Emulator failed to boot within timeout."
+              exit 1
+            fi
+
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Unlocking emulator..."
+            adb shell input keyevent 82
+            
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Verifying APK existence..."
+            APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+            if [ ! -f "$APK_PATH" ]; then
+              echo "ERROR: APK not found at $APK_PATH"
+              exit 1
+            fi
+            ls -lh "$APK_PATH"
+
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Appium server..."
+            cd appium-tests
+            npx appium --log ../appium-server.log --address 127.0.0.1 --port 4723 --base-path / &
+            
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Waiting for Appium server to be ready..."
+            appium_ready=0
+            for i in $(seq 1 30); do
+              if curl -s http://127.0.0.1:4723/status | grep -q "\"ready\":true"; then
+                echo "[$(date '+%Y-%m-%d %H:%M:%S')] Appium server is ready!"
+                appium_ready=1
+                break
+              fi
+              echo "Waiting for Appium status... ($i/30)"
+              sleep 2
+            done
+
+            if [ "$appium_ready" -ne 1 ]; then
+              echo "ERROR: Appium server failed to start."
+              cat ../appium-server.log
+              exit 1
+            fi
+
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Running Appium Tests..."
+            npm test || { echo "Tests failed"; TESTS_FAILED=true; }
+            
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating Report..."
+            npm run report || echo "Report generation failed"
+            
+            if [ "$TESTS_FAILED" == "true" ]; then
+              exit 1
+            fi
+
+      - name: Capture Logcat
+        if: always()
+        run: adb logcat -d > logcat.log
 
       - name: Upload Appium Report
         if: always()
@@ -80,6 +146,7 @@ jobs:
           name: appium-evidence
           path: |
             appium-server.log
+            logcat.log
             appium-tests/screenshots/
           retention-days: 14
 
