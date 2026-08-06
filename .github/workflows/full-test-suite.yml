@@ -39,7 +39,7 @@ jobs:
     name: Appium Tests - Group ${{ matrix.group }}
     needs: build-apk
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
