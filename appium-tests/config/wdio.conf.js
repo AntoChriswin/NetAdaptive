@@ -18,7 +18,10 @@ exports.config = {
         'appium:appPackage': 'com.simats.netadaptive',
         'appium:appActivity': '.ui.onboarding.SplashScreenActivity',
         'appium:newCommandTimeout': 240,
-        'appium:noReset': false
+        'appium:noReset': false,
+        'appium:disableWindowAnimation': true,
+        'appium:skipLogcatCapture': true,
+        'appium:automationName': 'UiAutomator2'
     }],
     logLevel: 'info',
     bail: 0,

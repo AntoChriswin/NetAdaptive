@@ -8,12 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  appium-tests:
-    name: Appium Android E2E Tests
+  build-apk:
+    name: Build Debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -25,6 +22,42 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Grant Execute Permission to Gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 1
+
+  appium-tests:
+    name: Appium Tests - Group ${{ matrix.group }}
+    needs: build-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: 1
+            specs: "tests/smoke.test.js,tests/auth_extended.test.js"
+          - group: 2
+            specs: "tests/dashboard_extended.test.js,tests/navigation_extended.test.js"
+          - group: 3
+            specs: "tests/apps_extended.test.js,tests/settings_extended.test.js"
+          - group: 4
+            specs: "tests/network_extended.test.js,tests/analytics_extended.test.js"
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -32,30 +65,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: appium-tests/package.json
 
-      - name: Grant Execute Permission to Gradlew
-        run: chmod +x gradlew
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
-
-      - name: Prepare Test Script
-        run: chmod +x appium-tests/run_tests.sh
+      - name: Download Debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/
 
       - name: Install Appium and Drivers
-        # REFACTOR: Use bash explicitly to ensure consistent shell behavior for multi-line if/else
         shell: bash
         run: |
           cd appium-tests
           npm install
-          echo "Checking currently installed Appium drivers..."
-          npx appium driver list --installed
-          
-          # Idempotent installation of uiautomator2 using a single shell process
           if ! npx appium driver list --installed | grep -q "uiautomator2"; then
-            echo "Installing uiautomator2 driver..."
             npx appium driver install uiautomator2
           else
-            echo "UIAutomator2 driver already installed. Updating..."
             npx appium driver update uiautomator2
           fi
 
@@ -68,31 +91,27 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim
           disable-animations: true
-          # REFACTOR: We call a standalone script to ensure the entire execution happens in a single process.
-          # This avoids "Syntax error: end of file unexpected" which occurs when the runner splits multi-line scripts.
-          script: cd appium-tests && ./run_tests.sh
-
-      - name: Capture Logcat
-        if: always()
-        run: adb logcat -d > logcat.log
+          script: |
+            cd appium-tests
+            chmod +x run_tests.sh
+            TEST_SPEC="${{ matrix.specs }}" REPORT_NAME="appium-report-group${{ matrix.group }}" ./run_tests.sh
 
       - name: Upload Appium Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: appium-test-report
-          path: appium-tests/reports/appium-test-report.xlsx
+          name: appium-report-group${{ matrix.group }}
+          path: appium-tests/reports/appium-report-group${{ matrix.group }}.xlsx
           retention-days: 14
 
-      - name: Upload Appium Logs & Evidence
+      - name: Upload Appium Evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: appium-evidence
+          name: appium-evidence-group${{ matrix.group }}
           path: |
             appium-server.log
             appium-stdout.log
-            logcat.log
             appium-tests/screenshots/
           retention-days: 14
 
@@ -185,15 +204,6 @@ jobs:
           path: security-tests/reports/*.xlsx
           retention-days: 14
 
-      - name: Upload Security Summaries
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-summaries
-          path: |
-            security-tests/reports/*.md
-          retention-days: 14
-
   final-summary:
     name: Final Test Suite Summary
     runs-on: ubuntu-latest
@@ -203,35 +213,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Download Appium Report
+      - name: Download All Reports
         uses: actions/download-artifact@v4
         with:
-          name: appium-test-report
-          path: reports/appium/
+          path: all-reports/
         continue-on-error: true
 
-      - name: Download Load Test Report
-        uses: actions/download-artifact@v4
-        with:
-          name: load-test-report
-          path: reports/load/
-        continue-on-error: true
-
-      - name: Download Security Reports
-        uses: actions/download-artifact@v4
-        with:
-          name: security-test-reports
-          path: reports/security/
-        continue-on-error: true
-
-      - name: Create Combined Report
+      - name: Create Combined Report Folder
         run: |
           mkdir -p combined-reports/appium
           mkdir -p combined-reports/load
           mkdir -p combined-reports/security
-          cp reports/appium/*.xlsx combined-reports/appium/ || true
-          cp reports/load/*.xlsx combined-reports/load/ || true
-          cp reports/security/*.xlsx combined-reports/security/ || true
+          # Find all appium reports and copy them
+          find all-reports/ -name "appium-report-group*.xlsx" -exec cp {} combined-reports/appium/ \;
+          find all-reports/ -name "load-test-report.xlsx" -exec cp {} combined-reports/load/ \;
+          find all-reports/ -name "*.xlsx" | grep security | xargs -I {} cp {} combined-reports/security/ || true
 
       - name: Upload Combined Reports
         uses: actions/upload-artifact@v4
@@ -249,9 +245,9 @@ jobs:
           
           # Appium Result
           if [ "${{ needs.appium-tests.result }}" == "success" ]; then
-            echo "| Appium Android E2E  | ✅ PASS | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
+            echo "| Appium Android E2E  | ✅ PASS | Artifacts Uploaded |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "| Appium Android E2E  | ❌ FAIL | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
+            echo "| Appium Android E2E  | ❌ FAIL | Check Shards |" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Load Result
@@ -267,10 +263,3 @@ jobs:
           else
             echo "| Security Assessment | ⚠️ ISSUE | Artifact Uploaded |" >> $GITHUB_STEP_SUMMARY
           fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- **Appium**: appium-test-report" >> $GITHUB_STEP_SUMMARY
-          echo "- **Load**: load-test-report" >> $GITHUB_STEP_SUMMARY
-          echo "- **Security**: security-test-reports" >> $GITHUB_STEP_SUMMARY
-          echo "- **Combined**: complete-test-reports" >> $GITHUB_STEP_SUMMARY

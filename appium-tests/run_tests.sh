@@ -5,7 +5,7 @@ echo "[$(date)] Starting emulator diagnostics..."
 adb devices
 
 echo "[$(date)] Waiting for emulator boot (sys.boot_completed)..."
-max_retries=30
+max_retries=60
 counter=1
 boot_completed=0
 
@@ -18,7 +18,7 @@ while [ $counter -le $max_retries ]; do
     break
   fi
   echo "[$(date)] Still waiting for boot... ($counter/$max_retries)"
-  sleep 10
+  sleep 5
   counter=$((counter + 1))
 done
 
@@ -71,7 +71,12 @@ fi
 echo "[$(date)] Running Appium Tests..."
 # Run tests and capture exit code
 TEST_EXIT_CODE=0
-npm test || TEST_EXIT_CODE=$?
+if [ -n "$TEST_SPEC" ]; then
+  echo "Executing specific specs: $TEST_SPEC"
+  npm test -- --spec "$TEST_SPEC" || TEST_EXIT_CODE=$?
+else
+  npm test || TEST_EXIT_CODE=$?
+fi
 
 if [ $TEST_EXIT_CODE -ne 0 ]; then
   echo "Tests failed during execution with exit code $TEST_EXIT_CODE"
@@ -79,7 +84,14 @@ if [ $TEST_EXIT_CODE -ne 0 ]; then
 fi
 
 echo "[$(date)] Generating execution report..."
-npm run report || echo "Report generation failed."
+if [ -n "$REPORT_NAME" ]; then
+  npm run report || echo "Report generation failed."
+  if [ -f "reports/appium-test-report.xlsx" ]; then
+    mv reports/appium-test-report.xlsx "reports/${REPORT_NAME}.xlsx"
+  fi
+else
+  npm run report || echo "Report generation failed."
+fi
 
 if [ "$TESTS_FAILED" = "true" ]; then
   exit 1
